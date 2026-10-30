@@ -1,0 +1,28 @@
+logLevel: info
+logDestinations: [stdout]
+
+# Протоколи
+rtmp: yes
+rtmpAddress: :1935
+
+hls: yes
+hlsAddress: :8888
+hlsAlwaysRemux: yes
+hlsVariant: lowLatency
+hlsSegmentCount: 7
+hlsSegmentDuration: 1s
+hlsPartDuration: 200ms
+
+# Private control API used by core-service to reflect real publisher readiness.
+api: yes
+apiAddress: :9997
+
+# HTTP-автентифікація через core-service
+authMethod: http
+authHTTPAddress: http://core-service:8000/api/streams/auth
+authHTTPExclude:
+  - action: read
+  - action: api
+
+paths:
+  all_others:
