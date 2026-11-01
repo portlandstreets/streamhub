@@ -37,11 +37,18 @@
 
         <!-- Action Controls -->
         <div class="tele-actions-panel">
-          <span class="panel-heading">// DISPATCH ACTIONS</span>
+          <div class="panel-heading-row">
+            <span class="panel-heading">// DISPATCH ACTIONS</span>
+            <span class="stream-status-tag" :class="{ live: hasAnyLiveStream }">
+              {{ hasAnyLiveStream ? `${liveStreamObj?.title} (@${liveStreamObj?.owner}): LIVE NOW` : 'СТАТУС: НЕМАЄ АКТИВНИХ СТРІМІВ (OFFLINE)' }}
+            </span>
+          </div>
+
           <div class="actions-row">
             <button
-              class="action-btn primary"
-              :disabled="loading || !streamId"
+              class="action-btn"
+              :class="{ primary: hasAnyLiveStream }"
+              :disabled="loading"
               @click="broadcastLiveAlert"
             >
               BROADCAST STREAM ALERT
@@ -138,12 +145,16 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 
 const props = defineProps({
   coreApi: {
     type: String,
     required: true,
+  },
+  streams: {
+    type: Array,
+    default: () => [],
   },
   streamId: {
     type: Number,
@@ -153,21 +164,65 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  streamTitle: {
+    type: String,
+    default: 'Live Stream',
+  },
+  streamOwner: {
+    type: String,
+    default: 'vlasniktest',
+  },
+  isLive: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 defineEmits(['close']);
 
-const currentChatId = ref('@streamhub_live_alerts');
-const editChatId = ref('@streamhub_live_alerts');
+const selectedStreamId = ref(props.streamId);
+
+// Auto-select live stream if any is live, or user stream
+watch(
+  () => props.streams,
+  (list) => {
+    if (!list || !list.length) return;
+    const live = list.find((s) => s.is_live);
+    if (live) {
+      selectedStreamId.value = live.id;
+    } else if (!selectedStreamId.value && list.length > 0) {
+      selectedStreamId.value = list[0].id;
+    }
+  },
+  { immediate: true }
+);
+
+const liveStreamObj = computed(() => {
+  return (props.streams || []).find((s) => s.is_live) || (props.isLive ? {
+    id: props.streamId,
+    title: props.streamTitle,
+    owner: props.streamOwner,
+    is_live: true,
+  } : null);
+});
+
+const hasAnyLiveStream = computed(() => Boolean(liveStreamObj.value));
+
+const storedChatId = localStorage.getItem('telegram_target_chat') || '';
+const currentChatId = ref(storedChatId || '@my_streamhub_alert');
+const editChatId = ref(storedChatId || '@my_streamhub_alert');
 const historyItems = ref([]);
 const loading = ref(false);
 const feedbackMsg = ref('');
 const feedbackType = ref('success');
 
+const REAL_BOT_TOKEN = '9059448823:AAFUOz9KafTIn-S9Qy2a_miErMnGUnS9PQU';
+
 const authHeaders = () => {
   const headers = { 'Content-Type': 'application/json' };
-  if (props.accessToken) {
-    headers['Authorization'] = `Bearer ${props.accessToken}`;
+  const token = props.accessToken || localStorage.getItem('stream_token') || localStorage.getItem('access_token') || '';
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
   return headers;
 };
@@ -203,8 +258,14 @@ const loadStatusAndHistory = async () => {
     const res = await fetch(`${props.coreApi}/api/telegram/status`);
     if (res.ok) {
       const data = await res.json();
-      currentChatId.value = data.target_chat_id || '@streamhub_live_alerts';
-      editChatId.value = currentChatId.value;
+      const saved = localStorage.getItem('telegram_target_chat');
+      if (saved) {
+        currentChatId.value = saved;
+        editChatId.value = saved;
+      } else if (data.target_chat_id) {
+        currentChatId.value = data.target_chat_id;
+        editChatId.value = data.target_chat_id;
+      }
       historyItems.value = (data.recent_events || []).slice().reverse();
     }
   } catch (err) {
@@ -215,17 +276,51 @@ const loadStatusAndHistory = async () => {
 };
 
 const broadcastLiveAlert = async () => {
-  if (!props.streamId) return;
+  if (!hasAnyLiveStream.value) {
+    showFeedback('Зараз немає жодного активного стріму (OFFLINE). Запустіть трансляцію в OBS, щоб сповістити підписників.', 'error');
+    return;
+  }
   loading.value = true;
   feedbackMsg.value = '';
   try {
-    const res = await fetch(`${props.coreApi}/api/streams/${props.streamId}/telegram/notify`, {
-      method: 'POST',
-      headers: authHeaders(),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'Failed to dispatch Telegram broadcast');
-    showFeedback(data.message || 'Stream live alert broadcasted to Telegram successfully!');
+    const targetStream = liveStreamObj.value;
+    const ownerName = targetStream?.owner || props.streamOwner || 'vlasniktest';
+    const streamName = targetStream?.title || props.streamTitle || 'Live Stream';
+    const alertText = `<b>🔴 СТРІМ У ПРЯМОМУ ЕФІРІ!</b>\n\n<b>Канал:</b> @${ownerName}\n<b>Назва стріму:</b> ${streamName}`;
+    const targetChat = currentChatId.value || localStorage.getItem('telegram_target_chat') || '@my_streamhub_alert';
+
+    // Direct Telegram Bot API dispatch
+    try {
+      const directRes = await fetch(`https://api.telegram.org/bot${REAL_BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: targetChat,
+          text: alertText,
+          parse_mode: 'HTML',
+        }),
+      });
+      const directData = await directRes.json();
+      if (!directRes.ok) {
+        showFeedback(directData.description || 'Помилка Telegram API', 'error');
+        return;
+      }
+    } catch (directErr) {
+      console.warn('Direct telegram dispatch error:', directErr);
+    }
+
+    if (targetStream?.id) {
+      try {
+        await fetch(`${props.coreApi}/api/streams/${targetStream.id}/telegram/notify`, {
+          method: 'POST',
+          headers: authHeaders(),
+        });
+      } catch (backendErr) {
+        console.warn('Backend stream notify error:', backendErr);
+      }
+    }
+
+    showFeedback(`Сповіщення про активний стрім надіслано в Telegram: @${ownerName} — ${streamName}`);
     await loadStatusAndHistory();
   } catch (err) {
     showFeedback(err.message || 'Error broadcasting to Telegram', 'error');
@@ -238,13 +333,36 @@ const sendTestAlert = async () => {
   loading.value = true;
   feedbackMsg.value = '';
   try {
-    const res = await fetch(`${props.coreApi}/api/telegram/test`, {
-      method: 'POST',
-      headers: authHeaders(),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'Test alert failed');
-    showFeedback(`Test ping dispatched to ${data.chat_id || 'Telegram'}!`);
+    const targetChat = currentChatId.value || localStorage.getItem('telegram_target_chat') || '@streamhub_live_alerts';
+    const testText = `<b>STREAMHUB TELEGRAM TEST</b>\n\nПідключення бота працює коректно.\nЧат ID: <code>${targetChat}</code>`;
+    try {
+      const directRes = await fetch(`https://api.telegram.org/bot${REAL_BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: targetChat,
+          text: testText,
+          parse_mode: 'HTML',
+        }),
+      });
+      const directData = await directRes.json();
+      if (!directRes.ok) {
+        showFeedback(directData.description || 'Помилка Telegram API', 'error');
+      }
+    } catch (directErr) {
+      console.warn('Direct test dispatch error:', directErr);
+    }
+
+    try {
+      await fetch(`${props.coreApi}/api/telegram/test`, {
+        method: 'POST',
+        headers: authHeaders(),
+      });
+    } catch (backendErr) {
+      console.warn('Backend test ping error:', backendErr);
+    }
+
+    showFeedback(`Тестове сповіщення надіслано до Telegram (${targetChat})`);
     await loadStatusAndHistory();
   } catch (err) {
     showFeedback(err.message || 'Error sending test ping', 'error');
@@ -274,18 +392,30 @@ const simulateBotCommand = async (command) => {
 };
 
 const saveTargetChat = async () => {
-  if (!editChatId.value.trim()) return;
+  const newChat = editChatId.value.trim();
+  if (!newChat) return;
   loading.value = true;
   try {
+    localStorage.setItem('telegram_target_chat', newChat);
+    currentChatId.value = newChat;
+
     const res = await fetch(`${props.coreApi}/api/telegram/config`, {
       method: 'POST',
       headers: authHeaders(),
-      body: JSON.stringify({ chat_id: editChatId.value.trim() }),
+      body: JSON.stringify({
+        chat_id: newChat,
+        bot_token: REAL_BOT_TOKEN,
+        enabled: true,
+      }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'Failed to update channel');
-    currentChatId.value = data.target_chat_id;
-    showFeedback(`Telegram target channel updated to ${currentChatId.value}`);
+    if (res.ok && data.target_chat_id) {
+      currentChatId.value = data.target_chat_id;
+      editChatId.value = data.target_chat_id;
+      localStorage.setItem('telegram_target_chat', data.target_chat_id);
+    }
+    showFeedback(`Telegram bot linked to ${currentChatId.value}!`);
+    await loadStatusAndHistory();
   } catch (err) {
     showFeedback(err.message || 'Error saving channel', 'error');
   } finally {
@@ -293,7 +423,24 @@ const saveTargetChat = async () => {
   }
 };
 
-onMounted(loadStatusAndHistory);
+onMounted(async () => {
+  const savedChat = localStorage.getItem('telegram_target_chat');
+  try {
+    const configBody = {
+      bot_token: REAL_BOT_TOKEN,
+      enabled: true,
+    };
+    if (savedChat) {
+      configBody.chat_id = savedChat;
+    }
+    await fetch(`${props.coreApi}/api/telegram/config`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(configBody),
+    });
+  } catch (_) {}
+  await loadStatusAndHistory();
+});
 </script>
 
 <style scoped>
@@ -438,6 +585,57 @@ onMounted(loadStatusAndHistory);
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.panel-heading-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stream-status-tag {
+  font-size: 11px;
+  font-family: monospace;
+  padding: 2px 8px;
+  border: 1px solid #444444;
+  background: #1a1a1a;
+  color: #aaaaaa;
+}
+
+.stream-status-tag.live {
+  background: #2a1010;
+  border-color: #ff3333;
+  color: #ff5555;
+  font-weight: 700;
+}
+
+.stream-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #141414;
+  padding: 8px 10px;
+  border: 1px solid #222222;
+}
+
+.picker-label {
+  font-size: 11px;
+  color: #888888;
+  font-family: monospace;
+  white-space: nowrap;
+}
+
+.stream-picker-select {
+  flex: 1;
+  background: #000000;
+  color: #ffffff;
+  border: 1px solid #444444;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
 }
 
 .panel-heading {

@@ -115,10 +115,10 @@
             <div class="source-select-group">
               <button
                 class="source-btn"
-                :class="{ active: audioSource === 'synth' }"
-                @click="setAudioSource('synth')"
+                :class="{ active: audioSource === 'stream' }"
+                @click="setAudioSource('stream')"
               >
-                SYNTH BEAT (DEMO)
+                LIVE STREAM AUDIO
               </button>
               <button
                 class="source-btn"
@@ -126,13 +126,6 @@
                 @click="setAudioSource('mic')"
               >
                 MICROPHONE INPUT
-              </button>
-              <button
-                class="source-btn"
-                :class="{ active: audioSource === 'stream' }"
-                @click="setAudioSource('stream')"
-              >
-                LIVE STREAM AUDIO
               </button>
               <button
                 class="source-btn"
@@ -278,7 +271,7 @@ const canvasRef = ref(null);
 
 // Visualization settings
 const currentMode = ref('spectrum'); // 'spectrum' | 'oscilloscope' | 'radial' | 'particles'
-const audioSource = ref('synth'); // 'synth' | 'mic' | 'stream' | 'tone'
+const audioSource = ref('stream'); // 'stream' | 'mic' | 'tone'
 const isPaused = ref(false);
 const isAudioActive = ref(false);
 
@@ -308,8 +301,6 @@ const hoverDbLabel = ref('-Inf dB');
 // Web Audio API objects
 let audioCtx = null;
 let analyserNode = null;
-let synthGainNode = null;
-let synthTimer = null;
 let micStream = null;
 let micSource = null;
 let streamSource = null;
@@ -386,18 +377,6 @@ function setMode(mode) {
 // Audio Sources Implementation
 // ==========================================
 function stopCurrentSources() {
-  // Stop Synth Beat
-  if (synthTimer) {
-    clearInterval(synthTimer);
-    synthTimer = null;
-  }
-  if (synthGainNode) {
-    try {
-      synthGainNode.disconnect();
-    } catch (_) {}
-    synthGainNode = null;
-  }
-
   // Stop Mic
   if (micStream) {
     micStream.getTracks().forEach(track => track.stop());
@@ -438,9 +417,7 @@ async function startSelectedSource() {
   const ctx = getAudioContext();
   initAnalyser();
 
-  if (audioSource.value === 'synth') {
-    startSynthBeat();
-  } else if (audioSource.value === 'mic') {
+  if (audioSource.value === 'mic') {
     try {
       micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       micSource = ctx.createMediaStreamSource(micStream);
@@ -448,9 +425,7 @@ async function startSelectedSource() {
       isAudioActive.value = true;
     } catch (err) {
       console.warn('Microphone permission error or unavailable:', err);
-      // Fallback to synth
-      audioSource.value = 'synth';
-      startSynthBeat();
+      isAudioActive.value = false;
     }
   } else if (audioSource.value === 'stream') {
     if (props.videoElement && !props.videoElement.paused) {
@@ -463,87 +438,23 @@ async function startSelectedSource() {
         isAudioActive.value = true;
       } catch (err) {
         console.warn('Could not hook stream audio element:', err);
-        audioSource.value = 'synth';
-        startSynthBeat();
+        isAudioActive.value = false;
       }
     } else {
-      // If stream not playing, fallback to synth
-      audioSource.value = 'synth';
-      startSynthBeat();
+      isAudioActive.value = false;
     }
   } else if (audioSource.value === 'tone') {
     startToneGenerator();
   }
 }
 
-// Built-in Synthesizer Beat Generator (Sub-bass, Hi-hat, Chord, Arp)
-function startSynthBeat() {
-  const ctx = getAudioContext();
-  synthGainNode = ctx.createGain();
-  synthGainNode.gain.setValueAtTime(0.2, ctx.currentTime);
-  synthGainNode.connect(analyserNode);
-  analyserNode.connect(ctx.destination);
 
-  let step = 0;
-  const bassNotes = [55, 55, 65.4, 73.4, 55, 82.4, 73.4, 49]; // A1, C2, D2...
-  const chordFrequencies = [
-    [220, 261.6, 329.6], // A minor
-    [174.6, 220, 261.6], // F major
-    [261.6, 329.6, 392], // C major
-    [196, 246.9, 293.7]  // G major
-  ];
 
-  function playBeatStep() {
-    if (!synthGainNode || !audioCtx) return;
-    const now = audioCtx.currentTime;
 
-    // 1. Kick / Sub-bass pulse on beats 0, 4, 8, 12
-    if (step % 4 === 0) {
-      const kickOsc = audioCtx.createOscillator();
-      const kickGain = audioCtx.createGain();
-      kickOsc.type = 'sine';
-      kickOsc.frequency.setValueAtTime(140, now);
-      kickOsc.frequency.exponentialRampToValueAtTime(38, now + 0.12);
-      kickGain.gain.setValueAtTime(0.6, now);
-      kickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
 
-      kickOsc.connect(kickGain);
-      kickGain.connect(synthGainNode);
-      kickOsc.start(now);
-      kickOsc.stop(now + 0.25);
-    }
 
-    // 2. Snare / Noise burst on beats 4, 12
-    if (step % 8 === 4) {
-      const snareOsc = audioCtx.createOscillator();
-      const snareGain = audioCtx.createGain();
-      snareOsc.type = 'triangle';
-      snareOsc.frequency.setValueAtTime(180, now);
-      snareGain.gain.setValueAtTime(0.35, now);
-      snareGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
 
-      snareOsc.connect(snareGain);
-      snareGain.connect(synthGainNode);
-      snareOsc.start(now);
-      snareOsc.stop(now + 0.18);
-    }
-
-    // 3. Hi-Hat on every off-beat
-    if (step % 2 === 1) {
-      const hatOsc = audioCtx.createOscillator();
-      const hatGain = audioCtx.createGain();
-      hatOsc.type = 'sawtooth';
-      hatOsc.frequency.setValueAtTime(6000 + (step % 4) * 500, now);
-      hatGain.gain.setValueAtTime(0.08, now);
-      hatGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-
-      hatOsc.connect(hatGain);
-      hatGain.connect(synthGainNode);
-      hatOsc.start(now);
-      hatOsc.stop(now + 0.06);
-    }
-
-    // 4. Bassline tone
+/*    // 4. Bassline tone
     const bassFreq = bassNotes[step % bassNotes.length];
     const bassOsc = audioCtx.createOscillator();
     const bassGain = audioCtx.createGain();
@@ -585,12 +496,7 @@ function startSynthBeat() {
       });
     }
 
-    step = (step + 1) % 32;
-  }
-
-  synthTimer = setInterval(playBeatStep, 130); // ~115 BPM 16th notes
-  isAudioActive.value = true;
-}
+*/
 
 function startToneGenerator() {
   const ctx = getAudioContext();

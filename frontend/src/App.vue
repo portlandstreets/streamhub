@@ -714,7 +714,11 @@
     <TelegramModal
       v-if="showTelegramModal"
       :core-api="CORE_API"
+      :streams="streamsList"
       :stream-id="currentStream ? currentStream.id : null"
+      :stream-title="currentStream ? currentStream.title : 'Live Stream'"
+      :stream-owner="currentStream ? currentStream.owner : (currentUser || 'vlasniktest')"
+      :is-live="Boolean(currentStream && currentStream.is_live)"
       :access-token="accessToken"
       @close="showTelegramModal = false"
     />
