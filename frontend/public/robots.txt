@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /api/internal/
+Disallow: /static/storage/temp/
+
+Sitemap: https://streamhub.app/sitemap.xml

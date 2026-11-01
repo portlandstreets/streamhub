@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#121212" />
+
+    <!-- Standard Primary SEO Meta Tags -->
+    <title>StreamHub — Live Video Streaming &amp; Creator Broadcast Platform</title>
+    <meta
+      name="title"
+      content="StreamHub — Live Video Streaming &amp; Creator Broadcast Platform"
+    />
+    <meta
+      name="description"
+      content="Discover live streaming channels, watch high-definition video broadcasts with ultra-low latency, chat with creators, and explore VOD recording archives on StreamHub."
+    />
+    <meta
+      name="keywords"
+      content="live streaming, video broadcast, creators, VOD recordings, web player, HLS, RTMP, OBS studio, live chat, streamhub"
+    />
+    <meta name="author" content="StreamHub Platform" />
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+    <link rel="canonical" href="https://streamhub.app/" />
+
+    <!-- Open Graph / Facebook / LinkedIn Metadata -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="StreamHub" />
+    <meta property="og:url" content="https://streamhub.app/" />
+    <meta
+      property="og:title"
+      content="StreamHub — Live Video Streaming &amp; Creator Broadcast Platform"
+    />
+    <meta
+      property="og:description"
+      content="Discover live streaming channels, watch high-definition video broadcasts with ultra-low latency, chat with creators, and explore VOD recording archives."
+    />
+    <meta property="og:image" content="https://streamhub.app/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="StreamHub Live Streaming Preview" />
+    <meta property="og:locale" content="uk_UA" />
+    <meta property="og:locale:alternate" content="en_US" />
+
+    <!-- Twitter Card Metadata -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@StreamHubApp" />
+    <meta name="twitter:creator" content="@StreamHubApp" />
+    <meta name="twitter:url" content="https://streamhub.app/" />
+    <meta
+      name="twitter:title"
+      content="StreamHub — Live Video Streaming &amp; Creator Broadcast Platform"
+    />
+    <meta
+      name="twitter:description"
+      content="Discover live streaming channels, watch high-definition video broadcasts with ultra-low latency, chat with creators, and explore VOD recording archives."
+    />
+    <meta name="twitter:image" content="https://streamhub.app/og-image.png" />
+    <meta name="twitter:image:alt" content="StreamHub Live Streaming Preview" />
+
+    <!-- Schema.org JSON-LD Structured Data -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://streamhub.app/#website",
+            "url": "https://streamhub.app/",
+            "name": "StreamHub",
+            "description": "Live video streaming and creator broadcast platform with low latency and real-time chat.",
+            "publisher": {
+              "@id": "https://streamhub.app/#organization"
+            },
+            "potentialAction": [
+              {
+                "@type": "SearchAction",
+                "target": {
+                  "@type": "EntryPoint",
+                  "urlTemplate": "https://streamhub.app/?q={search_term_string}"
+                },
+                "query-input": "required name=search_term_string"
+              }
+            ],
+            "inLanguage": ["uk-UA", "en-US"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://streamhub.app/#organization",
+            "name": "StreamHub",
+            "url": "https://streamhub.app/",
+            "logo": {
+              "@type": "ImageObject",
+              "inLanguage": "uk-UA",
+              "@id": "https://streamhub.app/#logo",
+              "url": "https://streamhub.app/favicon.svg",
+              "caption": "StreamHub Logo"
+            },
+            "contactPoint": [
+              {
+                "@type": "ContactPoint",
+                "contactType": "customer support",
+                "email": "support@streamhub.app"
+              }
+            ]
+          },
+          {
+            "@type": "BroadcastService",
+            "@id": "https://streamhub.app/#broadcastService",
+            "name": "StreamHub Live Broadcast Network",
+            "broadcaster": {
+              "@id": "https://streamhub.app/#organization"
+            },
+            "videoFormat": "HLS, RTMP, WebRTC",
+            "broadcastDisplayName": "StreamHub Broadcast Network"
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
