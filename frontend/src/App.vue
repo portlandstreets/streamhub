@@ -37,17 +37,11 @@
             </div>
 
             <div class="dropdown-group">
-              <span class="group-title">AI &amp; PROTOCOLS</span>
+              <span class="group-title">AI &amp; INTEGRATIONS</span>
               <button class="dropdown-item" @click="openTool('ai')">
-                <span class="item-tag">[C21]</span>
-                <span class="item-name">AI ASSISTANT (SSE STREAM)</span>
-              </button>
-              <button class="dropdown-item" @click="openTool('mcp')">
-                <span class="item-tag">[C22]</span>
-                <span class="item-name">MCP SERVER (JSON-RPC 2.0)</span>
+                <span class="item-name">AI ASSISTANT</span>
               </button>
               <button class="dropdown-item" @click="openTool('telegram')">
-                <span class="item-tag">[B2]</span>
                 <span class="item-name">TELEGRAM BOT &amp; WEBHOOKS</span>
               </button>
             </div>
@@ -55,15 +49,12 @@
             <div class="dropdown-group">
               <span class="group-title">STUDIO &amp; TELEMETRY</span>
               <button class="dropdown-item" @click="openTool('analytics')">
-                <span class="item-tag">[F1]</span>
-                <span class="item-name">ANALYTICS &amp; CHART.JS</span>
+                <span class="item-name">ANALYTICS &amp; METRICS</span>
               </button>
               <button class="dropdown-item" @click="openTool('canvas')">
-                <span class="item-tag">[F6]</span>
                 <span class="item-name">CANVAS 2D AUDIO MONITOR</span>
               </button>
               <button class="dropdown-item" @click="openTool('queue')">
-                <span class="item-tag">[B8]</span>
                 <span class="item-name">VOD &amp; MESSAGE QUEUE</span>
               </button>
             </div>
@@ -71,7 +62,6 @@
             <div class="dropdown-group">
               <span class="group-title">STORAGE &amp; MEDIA</span>
               <button class="dropdown-item" @click="openTool('blob')">
-                <span class="item-tag">[C19]</span>
                 <span class="item-name">BLOB STORAGE &amp; CDN</span>
               </button>
             </div>
@@ -79,11 +69,9 @@
             <div class="dropdown-group">
               <span class="group-title">SETTINGS &amp; PAGES</span>
               <button class="dropdown-item" @click="openTool('flags')">
-                <span class="item-tag">[B6]</span>
-                <span class="item-name">FLAGS &amp; PLANS ({{ userPlan.toUpperCase() }})</span>
+                <span class="item-name">TIER PLANS ({{ userPlan.toUpperCase() }})</span>
               </button>
               <button class="dropdown-item" @click="openTool('channels')">
-                <span class="item-tag">[C6]</span>
                 <span class="item-name">{{ showLandingPage ? 'BACK TO PLAYER' : 'CHANNELS DIRECTORY' }}</span>
               </button>
             </div>
@@ -114,6 +102,30 @@
           >// {{ page.label }}</button>
         </nav>
 
+        <template v-if="currentUser && ownStreams.length">
+          <div class="sidebar-section-title">
+            <span>YOUR CHANNELS</span>
+            <span>{{ ownStreams.length.toString().padStart(2, '0') }}</span>
+          </div>
+
+          <div class="stream-list">
+            <div
+              v-for="st in ownStreams"
+              :key="`own-${st.id}`"
+              class="stream-item"
+              :class="{ active: currentStream && currentStream.id === st.id }"
+              @click="openChannel(st)"
+            >
+              <div class="avatar">{{ st.title.slice(0, 2).toUpperCase() }}</div>
+              <div class="stream-meta">
+                <span class="author">{{ st.title }}</span>
+                <span class="category">{{ st.is_live ? 'LIVE NOW' : 'OFFLINE' }}</span>
+              </div>
+              <div class="live-pill" :class="{ is_live: st.is_live }">{{ st.is_live ? 'LIVE' : 'OFFLINE' }}</div>
+            </div>
+          </div>
+        </template>
+
         <div class="sidebar-section-title">
           <span>RECOMMENDED</span>
           <span>{{ liveStreams.length.toString().padStart(2, '0') }}</span>
@@ -132,7 +144,7 @@
               <span class="author">{{ st.title }}</span>
               <span class="category">{{ st.description || 'STREAM' }}</span>
             </div>
-            <div class="live-pill is_live">■ LIVE</div>
+            <div class="live-pill is_live">LIVE</div>
           </div>
           <p v-if="!liveStreams.length" class="sidebar-empty">No active streams</p>
         </div>
@@ -165,6 +177,22 @@
           <div v-if="!hasVideoFrame" class="offline-placeholder" :class="{ 'is-loading': currentStream.is_live }">
             <span>{{ currentStream.is_live ? '// PREPARING LIVE VIDEO //' : '// BROADCAST OFFLINE //' }}</span>
             <small>{{ playerStatus === 'VIDEO ERROR' ? 'Could not decode the stream. Check the OBS video source.' : currentStream.is_live ? 'Waiting for the first decoded video frame… (Tip: Set OBS Keyframe Interval to 1s)' : 'WAITING FOR RTMP PUBLISHER' }}</small>
+
+            <div v-if="isStreamOwner && !currentStream.is_live" class="owner-obs-helper">
+              <div class="owner-obs-helper-title">// OBS BROADCAST SETUP (CHANNEL: {{ currentUser }})</div>
+              <div class="owner-obs-helper-row">
+                <span>Server:</span>
+                <code>rtmp://127.0.0.1:1935/live</code>
+                <button class="action-btn sm" @click="copyServerUrl">COPY</button>
+              </div>
+              <div class="owner-obs-helper-row">
+                <span>Stream Key:</span>
+                <code>{{ streamKey }}</code>
+                <button class="action-btn sm" @click="copyStreamKey">COPY KEY</button>
+              </div>
+              <small>In OBS: Settings → Stream, enter server and stream key, then click "Start Streaming".</small>
+            </div>
+
             <button v-if="currentStream.is_live" class="action-btn sm mt-2" @click="forceReloadPlayer">RELOAD PLAYER</button>
           </div>
         </div>
@@ -194,8 +222,8 @@
               <button class="action-btn danger" @click="deleteCurrentStream">DELETE</button>
               <button class="action-btn" @click="showTelegramModal = true">TELEGRAM BOT</button>
             </template>
-            <button class="action-btn" @click="showAnalyticsModal = true" title="View Stream Analytics & Chart.js Metrics (F1)">ANALYTICS</button>
-            <button class="action-btn" @click="showCanvasModal = true" title="Open 2D Canvas Audio Monitor (F6)">CANVAS 2D</button>
+            <button class="action-btn" @click="showAnalyticsModal = true" title="View Stream Analytics & Metrics">ANALYTICS</button>
+            <button class="action-btn" @click="showCanvasModal = true" title="Open 2D Canvas Audio Monitor">CANVAS 2D</button>
             <button class="action-btn" :disabled="isCurrentUserOwner" @click="toggleFollow">
               {{ followingIds.includes(currentStream.id) ? 'UNFOLLOW' : 'FOLLOW' }}
             </button>
@@ -280,15 +308,11 @@
         </section>
 
         <section v-else-if="currentPage === 'archive'" class="directory-page">
-          <h1>// ARCHIVE (SAVED VODs &amp; RECORDINGS)</h1>
-          <p>Saved video recordings and offline streams. Open any stream to watch saved recordings or upload new VOD files.</p>
-          <div class="channel-grid">
-            <button v-for="st in offlineStreams" :key="st.id" class="channel-card" @click="openChannel(st)">
-              <strong>{{ st.title }}</strong><span>{{ st.owner }} · OFFLINE</span>
-              <small>{{ st.description || 'Open stream to view and manage recordings.' }}</small>
-            </button>
-          </div>
-          <p v-if="!offlineStreams.length" class="empty-page">No offline streams in the archive.</p>
+          <VideoArchive
+            :core-api="CORE_API"
+            :access-token="accessToken"
+            :current-user-id="currentUserId"
+          />
         </section>
 
         <!-- B6 Requirement: Special Page gated by Feature Flags -->
@@ -429,7 +453,7 @@
             <p>Signed in as <strong>{{ currentUser }}</strong>. Manage your streams and OBS broadcast connection.</p>
             <div class="profile-panel">
               <h2>Broadcast setup</h2>
-              <p>OBS server: <code>rtmp://127.0.0.1:1935/live</code></p>
+              <p>OBS server: <code>rtmp://127.0.0.1:1935/live</code> <button class="action-btn sm" @click="copyServerUrl">COPY</button></p>
               <p v-if="streamKey" class="stream-key-row">
                 <span>OBS stream key:</span>
                 <code>{{ streamKey }}</code>
@@ -447,7 +471,7 @@
               <div v-for="st in ownStreams" :key="st.id" class="channel-card profile-channel-card">
                 <div class="channel-card-body" @click="openChannel(st)">
                   <strong>{{ st.title }}</strong>
-                  <span class="live-pill" :class="{ is_live: st.is_live }">{{ st.is_live ? '■ LIVE' : 'OFFLINE' }}</span>
+                  <span class="live-pill" :class="{ is_live: st.is_live }">{{ st.is_live ? 'LIVE' : 'OFFLINE' }}</span>
                   <small>{{ st.description || 'Manage stream and recordings.' }}</small>
                 </div>
                 <div class="channel-card-actions">
@@ -468,8 +492,27 @@
       <!-- Правый сайдбар чата -->
       <section v-if="currentPage === 'home' && currentStream" class="chat-section">
         <div class="chat-header">
-          <span>STREAM CHAT</span>
-          <button class="chat-ai-toggle" @click="toggleAiModal">AI ASSISTANT</button>
+          <span class="chat-header-title">STREAM CHAT</span>
+          <div class="chat-header-actions">
+            <button
+              class="chat-mod-btn"
+              :class="{ active: isAiModerationActive }"
+              @click="toggleAiModeration"
+              :title="isAiModerationActive ? 'AI moderation is active: filters profanity and spam' : 'Activate AI chat moderation'"
+            >
+              {{ isAiModerationActive ? '[AI MOD: ON]' : '[AI MOD: OFF]' }}
+            </button>
+            <button
+              class="chat-clean-btn"
+              @click="cleanToxicChat"
+              title="Clean chat from toxic messages via MCP"
+            >
+              [CLEAN]
+            </button>
+            <button class="chat-ai-toggle" @click="toggleAiModal" title="Open AI Assistant dialog">
+              [AI]
+            </button>
+          </div>
         </div>
 
         <section v-if="showAiPanel" class="ai-panel">
@@ -533,6 +576,22 @@
             />
           </div>
 
+          <!-- OBS broadcast setup credentials -->
+          <div v-if="streamKey" class="modal-obs-box">
+            <div class="modal-obs-title">// OBS BROADCAST SETUP (ACCOUNT: {{ currentUser }})</div>
+            <div class="modal-obs-line">
+              <span>Server:</span>
+              <code>rtmp://127.0.0.1:1935/live</code>
+              <button type="button" class="action-btn sm" @click="copyServerUrl">COPY</button>
+            </div>
+            <div class="modal-obs-line">
+              <span>Stream Key:</span>
+              <code>{{ streamKey }}</code>
+              <button type="button" class="action-btn sm" @click="copyStreamKey">COPY KEY</button>
+            </div>
+            <small class="modal-obs-desc">Each channel account has its own unique OBS stream key. Paste this key into OBS (Settings → Stream) to broadcast.</small>
+          </div>
+
           <div v-if="streamError" class="modal-err">{{ streamError }}</div>
           <div class="modal-actions">
             <button type="submit" class="action-btn primary">SAVE</button>
@@ -573,7 +632,7 @@
 
           <!-- C16 Requirement: OAuth2 Social Logins -->
           <div class="oauth-divider">
-            <span>OR CONTINUE WITH OAUTH2 (C16)</span>
+            <span>OR CONTINUE WITH OAUTH2</span>
           </div>
 
           <div class="oauth-buttons">
@@ -608,19 +667,28 @@
             <span class="ai-avatar-badge">[AI]</span>
             <div>
               <h3>STREAMHUB AI ASSISTANT</h3>
-              <span class="ai-status-badge">ONLINE &middot; REAL-TIME LLM GUIDE</span>
+              <span class="ai-status-badge">ONLINE &middot; MCP JSON-RPC 2.0 (C22) &middot; STREAMING LLM</span>
             </div>
           </div>
           <button class="ai-close-btn" @click="showAiModal = false" title="Close">&times;</button>
         </div>
 
-        <!-- Quick prompt chips (C21 & C22 Tool Triggers) -->
         <div class="ai-quick-prompts">
-          <button class="quick-chip" @click="sendAiQuickPrompt('Які стріми зараз онлайн?')">// ОНЛАЙН СТРІМИ (list_streams)</button>
-          <button class="quick-chip" @click="sendAiQuickPrompt('Покажи телеметрію потоку та бітрейт')">// ТЕЛЕМЕТРІЯ (telemetry)</button>
-          <button class="quick-chip" @click="sendAiQuickPrompt('Покажи збережені записи VOD')">// АРХІВ VOD (recordings)</button>
-          <button class="quick-chip" @click="sendAiQuickPrompt('Створи новий стрім Cyberpunk Night')">// СТВОРИТИ СТРІМ (create_stream)</button>
-          <button class="quick-chip" @click="sendAiQuickPrompt('Який стан платформи StreamHub?')">// СТАН СЕРВЕРА (status)</button>
+          <button class="quick-chip" @click="sendAiQuickPrompt('Як налаштувати OBS Studio для трансляції на StreamHub?')">
+            // [OBS SETUP]
+          </button>
+          <button class="quick-chip" @click="sendAiQuickPrompt('Яка зараз телеметрія та бітрейт потоку?')">
+            // [TELEMETRY]
+          </button>
+          <button class="quick-chip" @click="sendAiQuickPrompt('Очисти чат від спаму та токсичних повідомлень')">
+            // [CLEAN CHAT]
+          </button>
+          <button class="quick-chip" @click="sendAiQuickPrompt('Увімкни автономну ШІ-модерацію для каналу')">
+            // [AI MODERATION]
+          </button>
+          <button class="quick-chip" @click="sendAiQuickPrompt('Хто зараз веде прямий ефір?')">
+            // [ACTIVE STREAMS]
+          </button>
         </div>
 
         <div class="ai-messages-container" ref="aiScrollContainer">
@@ -634,30 +702,17 @@
               {{ msg.role === 'assistant' ? 'AI' : 'YOU' }}
             </div>
             <div class="ai-bubble-content">
-              <div class="ai-bubble-author">{{ msg.role === 'assistant' ? 'STREAMHUB AI AGENT (C21 SSE)' : (currentUser || 'YOU') }}</div>
+              <div class="ai-bubble-author">{{ msg.role === 'assistant' ? 'STREAMHUB AI' : (currentUser || 'YOU') }}</div>
 
-              <!-- C21 Thinking & Tool Calling Steps visualization -->
-              <div v-if="msg.steps && msg.steps.length" class="ai-workflow-box">
-                <div class="workflow-header" @click="msg.showSteps = !msg.showSteps">
-                  <span class="workflow-title">// AGENT REASONING &amp; MCP TOOL CALLS ({{ msg.steps.length }} STEPS)</span>
-                  <span class="workflow-toggle">{{ msg.showSteps ? '▲ HIDE' : '▼ VIEW' }}</span>
-                </div>
-                <div v-if="msg.showSteps !== false" class="workflow-body">
-                  <div v-for="(st, sIdx) in msg.steps" :key="sIdx" class="workflow-item" :class="st.type">
-                    <span class="workflow-badge">[{{ st.type.toUpperCase() }}]</span>
-                    <span v-if="st.type === 'thinking'" class="workflow-thought">{{ st.text }}</span>
-                    <span v-else-if="st.type === 'tool_call'" class="workflow-tool">
-                      <code>mcp.{{ st.tool }}({{ JSON.stringify(st.args) }})</code>
-                    </span>
-                    <span v-else-if="st.type === 'tool_result'" class="workflow-res">
-                      <code>Status: 200 OK &bull; Result: {{ JSON.stringify(st.result).slice(0, 140) }}...</code>
-                    </span>
-                    <span v-else class="workflow-info">{{ st.text }}</span>
-                  </div>
-                </div>
+              <!-- Real-time MCP Tool badge if MCP tool was executed -->
+              <div v-if="msg.steps && msg.steps.some((s) => s.type === 'tool_call')" class="ai-mcp-badge">
+                <span class="mcp-icon">[MCP]</span>
+                <span class="mcp-label">TOOL:</span>
+                <code class="mcp-name">{{ msg.steps.find((s) => s.type === 'tool_call')?.tool }}</code>
+                <span class="mcp-badge-proto">JSON-RPC 2.0</span>
               </div>
 
-              <div class="ai-bubble-text" style="white-space: pre-wrap;">{{ msg.content }}</div>
+              <div class="ai-bubble-text" v-html="formatAiText(msg.content)"></div>
 
               <!-- Recommendation cards if present -->
               <div v-if="msg.recommendations && msg.recommendations.length > 0" class="ai-rec-cards">
@@ -700,7 +755,7 @@
             v-model="aiUserQuery"
             @keyup.enter="handleAiSubmit"
             type="text"
-            placeholder="Ask AI anything (recommendations, OBS settings, help)..."
+            placeholder="Запитайте ШІ про стріми, OBS, телеметрію або попросіть змодерувати чат..."
             :disabled="aiIsLoading"
           />
           <button class="action-btn primary" @click="handleAiSubmit" :disabled="aiIsLoading || !aiUserQuery.trim()">
@@ -728,6 +783,7 @@
       v-if="showQueueModal"
       :core-api="CORE_API"
       :stream-id="currentStream ? currentStream.id : null"
+      :current-user-id="currentUserId"
       @close="showQueueModal = false"
     />
 
@@ -757,13 +813,6 @@
       @close="showAnalyticsModal = false"
     />
 
-    <!-- C22 Model Context Protocol Server Modal -->
-    <McpServerModal
-      v-if="showMcpModal"
-      :core-api="CORE_API"
-      @close="showMcpModal = false"
-    />
-
     <!-- C19 Blob Storage & CDN Architecture Modal -->
     <BlobStorageModal
       v-if="showBlobModal"
@@ -776,6 +825,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import Hls from 'hls.js';
 import RecordingManager from './components/RecordingManager.vue';
+import VideoArchive from './components/VideoArchive.vue';
 import StreamLandingPage from './components/StreamLandingPage.vue';
 import FileApiModal from './components/FileApiModal.vue';
 import Select2Combobox from './components/Select2Combobox.vue';
@@ -785,7 +835,6 @@ import AsyncQueueModal from './components/AsyncQueueModal.vue';
 import CanvasStudioModal from './components/CanvasStudioModal.vue';
 import FeatureFlagsModal from './components/FeatureFlagsModal.vue';
 import AnalyticsDashboardModal from './components/AnalyticsDashboardModal.vue';
-import McpServerModal from './components/McpServerModal.vue';
 import BlobStorageModal from './components/BlobStorageModal.vue';
 import fallbackImage from './assets/hero.png';
 
@@ -803,14 +852,86 @@ const showQueueModal = ref(false);
 const showCanvasModal = ref(false);
 const showFlagsModal = ref(false);
 const showAnalyticsModal = ref(false);
-const showMcpModal = ref(false);
 const showBlobModal = ref(false);
 const showToolsMenu = ref(false);
 
+// C22 Model Context Protocol / AI Moderation Controls
+const isAiModerationActive = ref(true);
+
+const syncModerationStatus = async (streamId) => {
+  if (!streamId) return;
+  try {
+    const res = await fetch(`${CORE_API}/api/v1/mcp/moderation/${streamId}`);
+    if (res.ok) {
+      const data = await res.json();
+      isAiModerationActive.value = Boolean(data.ai_moderation);
+    }
+  } catch {
+    isAiModerationActive.value = true;
+  }
+};
+
+const toggleAiModeration = async () => {
+  const nextState = !isAiModerationActive.value;
+  try {
+    const res = await fetch(`${CORE_API}/api/v1/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: Date.now(),
+        method: 'tools/call',
+        params: {
+          name: 'set_ai_moderation',
+          arguments: {
+            stream_id: currentStream.value?.id || 1,
+            enabled: nextState,
+            requester_username: currentUser.value || 'Streamer'
+          }
+        }
+      })
+    });
+    if (res.ok) {
+      isAiModerationActive.value = nextState;
+    }
+  } catch (err) {
+    console.warn('Could not toggle AI moderation via MCP:', err);
+    isAiModerationActive.value = nextState;
+  }
+};
+
+const cleanToxicChat = async () => {
+  // Instantly clean matching toxic messages locally from chat view
+  const toxicRegex = /\b(fuck|fucking|shit|bitch|asshole|сука|бля|блять|хуй|хуйня|пиздец|піздец|єбать|ебать|нахуй|мудак|дебіл|дебил|спам|spam)\b/i;
+  messages.value = messages.value.filter(m => !toxicRegex.test(m.text || ''));
+
+  try {
+    await fetch(`${CORE_API}/api/v1/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: Date.now(),
+        method: 'tools/call',
+        params: {
+          name: 'moderate_chat',
+          arguments: {
+            stream_id: currentStream.value?.id || 1,
+            filter_type: 'toxic',
+            count: 50,
+            requester_username: currentUser.value || 'Streamer'
+          }
+        }
+      })
+    });
+  } catch (err) {
+    console.warn('Could not trigger chat moderation via MCP:', err);
+  }
+};
+
 const openTool = (toolKey) => {
   showToolsMenu.value = false;
-  if (toolKey === 'mcp') showMcpModal.value = true;
-  else if (toolKey === 'blob') showBlobModal.value = true;
+  if (toolKey === 'blob') showBlobModal.value = true;
   else if (toolKey === 'analytics') showAnalyticsModal.value = true;
   else if (toolKey === 'flags') showFlagsModal.value = true;
   else if (toolKey === 'canvas') showCanvasModal.value = true;
@@ -912,7 +1033,7 @@ const streamError = ref('');
 const isCurrentUserOwner = computed(
   () => Boolean(currentUserId.value && currentStream.value?.user_id === currentUserId.value)
 );
-const accessToken = computed(() => localStorage.getItem('stream_token') || '');
+const accessToken = ref(localStorage.getItem('stream_token') || '');
 
 let hlsInstance = null;
 let wsInstance = null;
@@ -1102,6 +1223,9 @@ const initChat = (streamId) => {
       const data = JSON.parse(event.data);
       if (data.type === 'history') {
         messages.value = data.messages || [];
+      } else if (data.type === 'delete_messages') {
+        const idsToDelete = new Set(data.message_ids || []);
+        messages.value = messages.value.filter((m) => !idsToDelete.has(m.id));
       } else if (!data.id || !messages.value.some((message) => message.id === data.id)) {
         messages.value.push(data);
       }
@@ -1145,6 +1269,7 @@ const selectStream = (st) => {
   currentStream.value = st;
   messages.value = [];
   initChat(st.id);
+  syncModerationStatus(st.id);
 };
 
 const openChannel = async (stream) => {
@@ -1213,12 +1338,14 @@ const formatMessageTime = (value) => {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
-const authenticatedHeaders = () => ({
-  Authorization: `Bearer ${accessToken.value}`
-});
+const authenticatedHeaders = () => {
+  const token = accessToken.value || localStorage.getItem('stream_token') || '';
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
 const loadSocialData = async () => {
-  if (!accessToken.value) {
+  const token = accessToken.value || localStorage.getItem('stream_token');
+  if (!token) {
     followingIds.value = [];
     subscriptionIds.value = [];
     return;
@@ -1236,12 +1363,18 @@ const loadSocialData = async () => {
 };
 
 const loadProfile = async () => {
-  if (!accessToken.value) return;
+  const token = accessToken.value || localStorage.getItem('stream_token');
+  if (!token) return;
   const response = await fetch(`${CORE_API}/api/users/me`, { headers: authenticatedHeaders() });
   if (!response.ok) throw new Error('Unable to load your profile');
-  profile.value = await response.json();
-  streamKey.value = profile.value.stream_key;
-  localStorage.setItem('stream_stream_key', streamKey.value);
+  const userMe = await response.json();
+  profile.value = userMe;
+  streamKey.value = userMe.stream_key;
+  currentUser.value = userMe.username;
+  currentUserId.value = userMe.id;
+  localStorage.setItem('stream_stream_key', userMe.stream_key);
+  localStorage.setItem('stream_user', userMe.username);
+  localStorage.setItem('stream_user_id', String(userMe.id));
 };
 
 // B6 Feature Flags & Plan Management
@@ -1289,11 +1422,32 @@ const onPlanChanged = (payload) => {
 };
 
 const copyStreamKey = async () => {
+  if (!streamKey.value) {
+    if (profile.value?.stream_key) {
+      streamKey.value = profile.value.stream_key;
+    } else {
+      await loadProfile();
+    }
+  }
+  if (!streamKey.value) {
+    window.alert('OBS stream key not found. Please log in or reload.');
+    return;
+  }
   try {
     await navigator.clipboard.writeText(streamKey.value);
+    window.alert(`OBS Stream Key copied to clipboard:\n${streamKey.value}`);
   } catch (error) {
-    console.error('Unable to copy OBS stream key:', error);
-    window.alert('Could not copy the stream key. Select and copy it manually.');
+    window.prompt('Your OBS Stream Key (Ctrl+C to copy):', streamKey.value);
+  }
+};
+
+const copyServerUrl = async () => {
+  const url = 'rtmp://127.0.0.1:1935/live';
+  try {
+    await navigator.clipboard.writeText(url);
+    window.alert(`OBS Server copied to clipboard:\n${url}`);
+  } catch {
+    window.prompt('OBS Server URL (Ctrl+C to copy):', url);
   }
 };
 
@@ -1349,6 +1503,49 @@ const toggleAiModal = () => {
   }
 };
 
+const formatAiText = (raw) => {
+  if (!raw) return '';
+  // 1. Прибираємо роздільники markdown таблиць типу |---|---|
+  let text = raw.replace(/^\s*\|[-:| ]+\|\s*$/gm, '');
+
+  // 2. Прибираємо шапку таблиць, якщо вона з'явилася
+  text = text.replace(/^\s*\|\s*(ID|Метрика|Крок|Параметр|Назва)\s*\|.*$/gim, '');
+
+  // 3. Перетворюємо рядки таблиць з | на красивий список з булетами
+  text = text.replace(/^\s*\|\s*(.*?)\s*\|\s*$/gm, (m, row) => {
+    const parts = row.split('|').map(s => s.trim().replace(/^\*\*|\*\*$/g, '')).filter(Boolean);
+    if (!parts.length) return '';
+    return '• ' + parts.join(' — ');
+  });
+
+  // 3. Прибираємо решітки заголовків ###, ##, #
+  text = text.replace(/^###+\s*(.*$)/gm, '$1');
+  text = text.replace(/^##\s*(.*$)/gm, '$1');
+  text = text.replace(/^#\s*(.*$)/gm, '$1');
+
+  // 4. Екрануємо базові HTML сутності для безпеки
+  let safe = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  // 5. Перетворюємо зірочки **жирний** та ***жирний-курсив*** на чистий HTML strong
+  safe = safe.replace(/\*\*\*(.*?)\*\*\*/g, '<strong>$1</strong>');
+  safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  safe = safe.replace(/(^|[^\*])\*([^\*]+)\*([^\*]|$)/g, '$1<em>$2</em>$3');
+
+  // 6. Форматуємо код у зворотних лапках `код`
+  safe = safe.replace(/`([^`]+)`/g, '<code class="ai-inline-code">$1</code>');
+
+  // 7. Створюємо приємні абзаци
+  safe = safe
+    .split(/\n\n+/)
+    .map(para => `<p>${para.replace(/\n/g, '<br/>')}</p>`)
+    .join('');
+
+  return safe;
+};
+
 const sendAiQuickPrompt = (promptText) => {
   aiUserQuery.value = promptText;
   handleAiSubmit();
@@ -1368,6 +1565,10 @@ const handleAiSubmit = async () => {
   aiIsLoading.value = true;
 
   const assistantMsgIndex = aiChatMessages.value.length;
+  const conversationMessages = aiChatMessages.value
+    .slice(0, assistantMsgIndex)
+    .filter((message) => message.role === 'user' || message.role === 'assistant')
+    .map(({ role, content }) => ({ role, content }));
   aiChatMessages.value.push({
     role: 'assistant',
     content: '',
@@ -1391,7 +1592,9 @@ const handleAiSubmit = async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         query,
-        stream_id: currentStream.value?.id || 1
+        messages: conversationMessages,
+        stream_id: currentStream.value?.id || 1,
+        requester_username: currentUser.value || 'Guest'
       })
     });
 
@@ -1450,9 +1653,13 @@ const handleAiSubmit = async () => {
             } else if (eventType === 'token') {
               msg.content += parsed.token;
             } else if (eventType === 'done') {
+              msg.toolCalled = parsed.tool_called || null;
+              msg.toolCalls = parsed.tool_calls || [];
               if (parsed.recommendations && parsed.recommendations.length) {
                 msg.recommendations = parsed.recommendations;
               }
+            } else if (eventType === 'error') {
+              msg.content = `Помилка AI-агента: ${parsed.message || 'невідома помилка'}`;
             }
             scrollBottom();
           } catch (jsonErr) {
@@ -1468,20 +1675,29 @@ const handleAiSubmit = async () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: [{ role: 'user', content: query }],
+          messages: conversationMessages,
           user: currentUser.value || 'Viewer'
         })
       });
       const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || `HTTP ${res.status}`);
+      }
       const msg = aiChatMessages.value[assistantMsgIndex];
       if (msg) {
         msg.content = data.reply || 'Ось відповідь:';
         msg.recommendations = data.recommendations || [];
+        msg.toolCalled = data.tool_called || null;
+        msg.toolCalls = data.tool_calls || [];
+        msg.steps = (data.tool_calls || []).map((tool) => ({
+          type: 'tool_call',
+          tool
+        }));
       }
     } catch (fallbackErr) {
       const msg = aiChatMessages.value[assistantMsgIndex];
       if (msg) {
-        msg.content = `Помилка з'єднання з AI-агентом (${err.message}). Переконайся, що ai-agent працює на порту 8002.`;
+        msg.content = `Помилка з'єднання з AI-агентом (${fallbackErr.message || err.message}). Переконайся, що ai-agent працює на порту 8002.`;
       }
     }
   } finally {
@@ -1525,6 +1741,7 @@ const submitAuth = async () => {
       throw new Error(data.detail || 'Authentication failed');
     }
 
+    accessToken.value = data.access_token;
     localStorage.setItem('stream_token', data.access_token);
     localStorage.setItem('stream_user', data.username);
     localStorage.setItem('stream_user_id', String(data.user_id));
@@ -1540,11 +1757,11 @@ const submitAuth = async () => {
     showAuthModal.value = false;
     refreshUserFlags().catch((error) => console.error('Unable to refresh user flags:', error));
     loadSocialData().catch((error) => console.error('Unable to load social data:', error));
-    if (currentPage.value === 'profile') {
-      loadProfile().catch((error) => console.error('Unable to load profile:', error));
-    }
-
-    if (currentStream.value) {
+    await fetchStreams();
+    const myChannel = ownStreams.value[0];
+    if (myChannel) {
+      await openChannel(myChannel);
+    } else if (currentStream.value) {
       initChat(currentStream.value.id);
     }
   } catch (err) {
@@ -1568,6 +1785,7 @@ const loginWithOAuth = async (provider) => {
       throw new Error(data.detail || `OAuth authentication with ${provider} failed`);
     }
 
+    accessToken.value = data.access_token;
     localStorage.setItem('stream_token', data.access_token);
     localStorage.setItem('stream_user', data.username);
     localStorage.setItem('stream_user_id', String(data.user_id));
@@ -1583,10 +1801,11 @@ const loginWithOAuth = async (provider) => {
     showAuthModal.value = false;
     refreshUserFlags().catch((error) => console.error('Unable to refresh user flags:', error));
     loadSocialData().catch((error) => console.error('Unable to load social data:', error));
-    if (currentPage.value === 'profile') {
-      loadProfile().catch((error) => console.error('Unable to load profile:', error));
-    }
-    if (currentStream.value) {
+    await fetchStreams();
+    const myChannel = ownStreams.value[0];
+    if (myChannel) {
+      await openChannel(myChannel);
+    } else if (currentStream.value) {
       initChat(currentStream.value.id);
     }
   } catch (err) {
@@ -1597,6 +1816,7 @@ const loginWithOAuth = async (provider) => {
 };
 
 const handleLogout = () => {
+  accessToken.value = '';
   localStorage.removeItem('stream_token');
   localStorage.removeItem('stream_user');
   localStorage.removeItem('stream_user_id');
@@ -1712,6 +1932,7 @@ onMounted(() => {
   if (oauthToken && oauthUsername) {
     localStorage.setItem('stream_token', oauthToken);
     localStorage.setItem('stream_user', oauthUsername);
+    accessToken.value = oauthToken;
     currentUser.value = oauthUsername;
     window.history.replaceState({}, document.title, window.location.pathname);
   }
@@ -2142,6 +2363,102 @@ onBeforeUnmount(() => {
   gap: 8px;
   color: #444;
   font-weight: 700;
+  text-align: center;
+  max-width: 90%;
+}
+
+.owner-obs-helper {
+  margin-top: 14px;
+  padding: 12px 16px;
+  background: rgba(18, 18, 18, 0.95);
+  border: 1px solid #333;
+  border-left: 3px solid #ff0055;
+  color: #ddd;
+  font-size: 11px;
+  text-align: left;
+  max-width: 520px;
+  font-weight: 400;
+}
+
+.owner-obs-helper-title {
+  font-weight: 700;
+  color: #ff0055;
+  margin-bottom: 6px;
+  letter-spacing: 0.5px;
+}
+
+.owner-obs-helper-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.owner-obs-helper-row code {
+  color: #00e5ff;
+  background: #000;
+  padding: 2px 6px;
+  border: 1px solid #292929;
+  font-family: monospace;
+}
+
+.owner-obs-helper small {
+  color: #888;
+  display: block;
+  margin-top: 6px;
+}
+
+.modal-obs-box {
+  margin: 14px 0;
+  padding: 12px 14px;
+  background: #121212;
+  border: 1px solid #292929;
+  border-left: 3px solid #00e5ff;
+  text-align: left;
+}
+
+.modal-obs-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #00e5ff;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.modal-obs-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+  font-size: 11px;
+  color: #bbb;
+}
+
+.modal-obs-line code {
+  color: #fff;
+  background: #000;
+  padding: 2px 6px;
+  border: 1px solid #292929;
+  font-family: monospace;
+}
+
+.modal-obs-desc {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #888;
+  line-height: 1.4;
+}
+
+.key-btn {
+  background: #1a1a1a;
+  border-color: #444;
+  color: #00e5ff;
+}
+
+.key-btn:hover {
+  background: #252525;
+  border-color: #00e5ff;
 }
 
 .broadcast-footer {
@@ -2281,34 +2598,118 @@ onBeforeUnmount(() => {
 }
 
 .chat-header {
-  height: 48px;
+  min-height: 48px;
+  height: auto;
   border-bottom: 1px solid #222;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
-  font-size: 12px;
+  padding: 6px 10px;
+  font-size: 11px;
   font-weight: 700;
+  gap: 6px;
+}
+
+.chat-header-title {
+  white-space: nowrap;
+  letter-spacing: 0.5px;
+  color: #fff;
+  font-size: 11px;
+}
+
+.chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+.chat-mod-btn {
+  height: 24px;
+  line-height: 22px;
+  padding: 0 6px;
+  background: #0a0a0a;
+  border: 1px solid #333333;
+  color: #777777;
+  font-family: monospace, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.chat-mod-btn.active {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #000000;
+  font-weight: 800;
+}
+
+.chat-mod-btn:hover {
+  border-color: #888888;
+  color: #ffffff;
+}
+
+.chat-mod-btn.active:hover {
+  background: #e5e5e5;
+  border-color: #e5e5e5;
+  color: #000000;
+}
+
+.chat-clean-btn {
+  height: 24px;
+  line-height: 22px;
+  padding: 0 6px;
+  background: #0a0a0a;
+  border: 1px solid #333333;
+  color: #cccccc;
+  font-family: monospace, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.chat-clean-btn:hover {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #000000;
 }
 
 .chat-ai-toggle {
-  height: 26px;
-  line-height: 24px;
-  padding: 0 10px;
-  background: #181818;
+  height: 24px;
+  line-height: 22px;
+  padding: 0 6px;
+  background: #0a0a0a;
   border: 1px solid #333333;
-  color: #ffffff;
-  font-family: inherit;
+  color: #cccccc;
+  font-family: monospace, monospace;
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
   cursor: pointer;
   transition: all 0.15s ease;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
 }
 
 .chat-ai-toggle:hover {
-  background: #262626;
-  border-color: #666666;
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #000000;
 }
 
 .ai-panel {
@@ -2628,19 +3029,84 @@ onBeforeUnmount(() => {
   letter-spacing: 0.5px;
 }
 
+.ai-mcp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #0f2416;
+  border: 1px solid #1e4a28;
+  color: #4ade80;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  margin-bottom: 4px;
+  border-radius: 4px;
+}
+
+.ai-mcp-badge .mcp-icon {
+  font-size: 11px;
+}
+
+.ai-mcp-badge .mcp-label {
+  color: #86efac;
+}
+
+.ai-mcp-badge .mcp-name {
+  color: #ffffff;
+  font-family: monospace;
+  background: #091a0e;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.ai-mcp-badge .mcp-badge-proto {
+  color: #6ee7b7;
+  opacity: 0.75;
+  font-size: 9px;
+}
+
 .ai-bubble-text {
   background: #141414;
-  border: 1px solid #262626;
-  padding: 10px 14px;
+  border: 1px solid #2a2a2a;
+  border-radius: 6px;
+  padding: 14px 18px;
   color: #ededed;
-  font-size: 12px;
-  line-height: 1.5;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.65;
+  letter-spacing: normal;
   word-break: break-word;
 }
-.ai-chat-bubble-wrap.user .ai-bubble-text {
+.ai-bubble-text p {
+  margin: 0 0 10px 0;
+}
+.ai-bubble-text p:last-child {
+  margin-bottom: 0;
+}
+.ai-bubble-text strong {
+  color: #55ff99;
+  font-weight: 600;
+}
+.ai-bubble-text em {
+  color: #cccccc;
+  font-style: italic;
+}
+.ai-bubble-text .ai-inline-code {
   background: #202020;
+  color: #00e5ff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 13px;
+  border: 1px solid #333333;
+}
+.ai-chat-bubble-wrap.user .ai-bubble-text {
+  background: #1e1e1e;
   border-color: #444444;
   color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
 }
 
 .ai-rec-cards {

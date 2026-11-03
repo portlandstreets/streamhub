@@ -130,8 +130,8 @@ async def startup_event():
 
     # B8 Requirement: Start Background Message Queue Consumers / Workers
     try:
-        from queue import async_job_queue
-        async_job_queue.start()
+        from job_queue import async_job_queue
+        await async_job_queue.start()
     except Exception as e:
         logger.warning("Could not start background queue workers: %s", e)
 
@@ -142,10 +142,10 @@ async def shutdown_event():
     if task:
         task.cancel()
     try:
-        from queue import async_job_queue
-        async_job_queue.stop()
+        from job_queue import async_job_queue
+        await async_job_queue.stop()
     except Exception:
-        pass
+        logger.exception("Could not stop background queue workers cleanly")
     await cache.close()
 
 
