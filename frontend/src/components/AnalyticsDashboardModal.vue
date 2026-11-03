@@ -136,7 +136,7 @@
       <!-- Footer -->
       <div class="analytics-modal-footer">
         <span class="footer-hint">
-          CHART.JS 4.x ENGINE INTEGRATION &bull; REAL-TIME TIME-SERIES TELEMETRY (F1)
+          CHART.JS 4.x ENGINE INTEGRATION &bull; REAL-TIME TIME-SERIES TELEMETRY
         </span>
         <button class="win-btn" @click="$emit('close')">CLOSE DASHBOARD</button>
       </div>

@@ -1,11 +1,11 @@
 <template>
-  <section class="markdown-editor-section">
+  <section ref="editorSection" class="markdown-editor-section">
     <!-- Section Header -->
     <div class="editor-header">
       <div class="header-titles">
-        <h3>// CHANNEL BIO &amp; RULES (NOTION MARKDOWN EDITOR - C12 &amp; F3)</h3>
+        <h3>// CHANNEL BIO &amp; RULES</h3>
         <span class="header-subtitle">
-          Dynamic block-based editor with instant localStorage persistence and drag-n-drop reordering.
+          Streamer biography, channel guidelines, and broadcast schedule.
         </span>
       </div>
 
@@ -15,6 +15,7 @@
         </span>
         <div class="view-toggles">
           <button
+            type="button"
             class="action-btn sm"
             :class="{ active: viewMode === 'interactive' }"
             @click="viewMode = 'interactive'"
@@ -22,6 +23,7 @@
             BLOCK EDITOR
           </button>
           <button
+            type="button"
             class="action-btn sm"
             :class="{ active: viewMode === 'preview' }"
             @click="viewMode = 'preview'"
@@ -29,6 +31,7 @@
             CLEAN PREVIEW
           </button>
           <button
+            type="button"
             class="action-btn sm"
             :class="{ active: viewMode === 'raw' }"
             @click="viewMode = 'raw'"
@@ -41,20 +44,27 @@
 
     <!-- Quick Block Creation Toolbar (Notion Style) -->
     <div v-if="viewMode === 'interactive'" class="block-toolbar">
-      <span class="toolbar-label">+ ADD BLOCK:</span>
-      <button class="tool-btn" @click="addBlock('paragraph')">PARAGRAPH</button>
-      <button class="tool-btn" @click="addBlock('h1')">HEADING 1</button>
-      <button class="tool-btn" @click="addBlock('h2')">HEADING 2</button>
-      <button class="tool-btn" @click="addBlock('bullet')">BULLET LIST</button>
-      <button class="tool-btn" @click="addBlock('callout')">RULE / CALLOUT</button>
-      <button class="tool-btn" @click="addBlock('code')">CODE / COMMAND</button>
+      <button
+        type="button"
+        class="toolbar-label"
+        aria-label="Add paragraph block"
+        @click="addBlock('paragraph')"
+      >
+        + ADD BLOCK:
+      </button>
+      <button type="button" class="tool-btn" @click="addBlock('paragraph')">PARAGRAPH</button>
+      <button type="button" class="tool-btn" @click="addBlock('h1')">HEADING 1</button>
+      <button type="button" class="tool-btn" @click="addBlock('h2')">HEADING 2</button>
+      <button type="button" class="tool-btn" @click="addBlock('bullet')">BULLET LIST</button>
+      <button type="button" class="tool-btn" @click="addBlock('callout')">RULE / CALLOUT</button>
+      <button type="button" class="tool-btn" @click="addBlock('code')">CODE / COMMAND</button>
 
       <div class="toolbar-spacer"></div>
 
-      <button class="tool-btn secondary" @click="copyFullMarkdown">
+      <button type="button" class="tool-btn secondary" @click="copyFullMarkdown">
         {{ copySuccess ? 'COPIED!' : 'COPY RAW MD' }}
       </button>
-      <button class="tool-btn secondary" @click="resetToTemplate">
+      <button type="button" class="tool-btn secondary" @click="resetToTemplate">
         RESET DEFAULT
       </button>
     </div>
@@ -121,6 +131,7 @@
         <!-- Block Controls: Move Up, Move Down, Delete -->
         <div class="block-actions">
           <button
+            type="button"
             class="ctrl-btn"
             :disabled="index === 0"
             title="Move Up"
@@ -129,6 +140,7 @@
             ↑
           </button>
           <button
+            type="button"
             class="ctrl-btn"
             :disabled="index === blocks.length - 1"
             title="Move Down"
@@ -137,6 +149,7 @@
             ↓
           </button>
           <button
+            type="button"
             class="ctrl-btn danger"
             title="Delete Block"
             @click="deleteBlock(index)"
@@ -147,7 +160,7 @@
       </div>
 
       <!-- Add Block Bottom Bar -->
-      <button class="add-block-bottom" @click="addBlock('paragraph')">
+      <button type="button" class="add-block-bottom" @click="addBlock('paragraph')">
         + CLICK TO ADD NEW BLOCK (OR PRESS ENTER INSIDE ANY BLOCK)
       </button>
     </div>
@@ -171,7 +184,7 @@
     <div v-else-if="viewMode === 'raw'" class="raw-markdown-container">
       <div class="raw-actions-top">
         <span>// GENERATED MARKDOWN SOURCE</span>
-        <button class="action-btn sm" @click="copyFullMarkdown">
+        <button type="button" class="action-btn sm" @click="copyFullMarkdown">
           {{ copySuccess ? 'COPIED TO CLIPBOARD' : 'COPY ALL MARKDOWN' }}
         </button>
       </div>
@@ -207,6 +220,7 @@ const props = defineProps({
 
 const viewMode = ref('interactive'); // 'interactive' | 'preview' | 'raw'
 const blocks = ref([]);
+const editorSection = ref(null);
 const justSaved = ref(false);
 const saveStatusText = ref('SAVED TO LOCALSTORAGE');
 const copySuccess = ref(false);
@@ -305,7 +319,7 @@ const triggerSave = () => {
 
 const addBlock = (type = 'paragraph', insertAfterIndex = null) => {
   const newBlock = {
-    id: `block-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+    id: `block-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     type,
     content: '',
   };
@@ -314,11 +328,9 @@ const addBlock = (type = 'paragraph', insertAfterIndex = null) => {
   } else {
     blocks.value.push(newBlock);
   }
-  triggerSave();
-
-  // Focus the newly added block textarea
+  saveBlocks();
   nextTick(() => {
-    const textareas = document.querySelectorAll('.block-textarea');
+    const textareas = editorSection.value?.querySelectorAll('.block-textarea');
     const targetIdx = insertAfterIndex !== null ? insertAfterIndex + 1 : blocks.value.length - 1;
     if (textareas[targetIdx]) {
       textareas[targetIdx].focus();
@@ -621,10 +633,19 @@ onMounted(() => {
 }
 
 .toolbar-label {
+  padding: 0;
+  border: 0;
+  background: transparent;
   font-size: 10px;
   font-family: monospace;
   color: #888888;
   margin-right: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.toolbar-label:hover {
+  color: #ffffff;
 }
 
 .tool-btn {

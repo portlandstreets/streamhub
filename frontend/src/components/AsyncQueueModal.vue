@@ -4,9 +4,9 @@
       <!-- Modal Header -->
       <div class="modal-header">
         <div class="header-titles">
-          <h3>// ASYNCHRONOUS MESSAGE QUEUE &amp; WORKERS (B8)</h3>
+          <h3>// ASYNCHRONOUS MESSAGE QUEUE &amp; WORKERS</h3>
           <span class="header-sub">
-            Producer-Consumer Architecture &middot; RabbitMQ / Redis Message Broker
+            Producer-Consumer Architecture &middot; Durable RabbitMQ Queue
           </span>
         </div>
         <button class="icon-close-btn" @click="$emit('close')" aria-label="Close">✕</button>
@@ -23,8 +23,10 @@
           <div class="stat-card">
             <span class="label">ACTIVE WORKERS</span>
             <div class="worker-badge-row">
-              <span class="badge-online">ONLINE</span>
-              <strong>{{ queueStats.active_workers || 2 }} Workers</strong>
+              <span :class="queueStats.status === 'RUNNING' ? 'badge-online' : 'badge-offline'">
+                {{ queueStats.status || 'UNAVAILABLE' }}
+              </span>
+              <strong>{{ queueStats.active_workers || 0 }} Workers</strong>
             </div>
             <span class="sub-label">Asynchronous ACK/NACK Consumers</span>
           </div>
@@ -47,26 +49,29 @@
             <span class="poll-badge">LIVE AUTO-POLLING (1.5s)</span>
           </div>
           <div class="actions-row">
+            <select v-model.number="selectedRecordingId" class="recording-select">
+              <option :value="0" disabled>Select a saved video</option>
+              <option
+                v-for="recording in recordings"
+                :key="recording.id"
+                :value="recording.id"
+              >
+                {{ recording.title }} / {{ recording.stream_title }}
+              </option>
+            </select>
             <button
               class="action-btn primary"
-              :disabled="loading"
+              :disabled="loading || !selectedRecording"
               @click="enqueueJob('transcode_vod')"
             >
               + ENQUEUE VOD TRANSCODE
             </button>
             <button
               class="action-btn"
-              :disabled="loading"
+              :disabled="loading || !selectedRecording"
               @click="enqueueJob('extract_thumbnails')"
             >
               + ENQUEUE THUMBNAILS EXTRACTOR
-            </button>
-            <button
-              class="action-btn"
-              :disabled="loading"
-              @click="enqueueJob('ai_content_moderation')"
-            >
-              + ENQUEUE AI MODERATION
             </button>
             <button
               class="action-btn secondary"
@@ -91,7 +96,7 @@
           </div>
 
           <div v-if="jobsList.length === 0" class="empty-jobs">
-            No background jobs dispatched yet. Click "+ ENQUEUE VOD TRANSCODE" above to test.
+            No background video jobs dispatched yet. Select an uploaded video to process it.
           </div>
 
           <div v-else class="table-scroll-wrap">
@@ -161,7 +166,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
 
 const props = defineProps({
   coreApi: {
@@ -172,15 +177,24 @@ const props = defineProps({
     type: Number,
     default: null,
   },
+  currentUserId: {
+    type: Number,
+    default: null,
+  },
 });
 
 defineEmits(['close']);
 
 const queueStats = ref({});
 const jobsList = ref([]);
+const recordings = ref([]);
+const selectedRecordingId = ref(0);
 const loading = ref(false);
 const feedbackMsg = ref('');
 let pollInterval = null;
+const selectedRecording = computed(() =>
+  recordings.value.find((recording) => recording.id === selectedRecordingId.value)
+);
 
 const formatJobType = (t) => {
   switch (t) {
@@ -188,8 +202,6 @@ const formatJobType = (t) => {
       return 'VOD TRANSCODE';
     case 'extract_thumbnails':
       return 'THUMBNAILS';
-    case 'ai_content_moderation':
-      return 'AI MODERATION';
     default:
       return (t || 'TASK').toUpperCase();
   }
@@ -221,17 +233,42 @@ const fetchStats = async () => {
   }
 };
 
+const fetchRecordings = async () => {
+  try {
+    const res = await fetch(`${props.coreApi}/api/recordings?skip=0&limit=100`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Could not load saved videos');
+    recordings.value = (data.items || []).filter((recording) =>
+      Number(recording.user_id) === Number(props.currentUserId)
+      && (!props.streamId || recording.stream_id === props.streamId)
+    );
+    if (!selectedRecording.value && recordings.value.length) {
+      selectedRecordingId.value = recordings.value[0].id;
+    }
+  } catch (err) {
+    feedbackMsg.value = err instanceof Error ? err.message : 'Could not load saved videos';
+  }
+};
+
 const enqueueJob = async (type) => {
   loading.value = true;
   feedbackMsg.value = '';
   try {
+    if (!selectedRecording.value) {
+      throw new Error('Select one of your saved videos first.');
+    }
+    const token = localStorage.getItem('stream_token') || localStorage.getItem('access_token') || '';
+    const headers = { 'Content-Type': 'application/json' };
+    if (!token) throw new Error('Sign in before starting video processing.');
+    headers['Authorization'] = `Bearer ${token}`;
     const res = await fetch(`${props.coreApi}/api/queue/jobs`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         type,
-        stream_id: props.streamId || 1,
-        file_path: `/storage/recordings/stream_${props.streamId || 1}_vod.mp4`,
+        stream_id: selectedRecording.value.stream_id,
+        file_path: selectedRecording.value.file_path,
+        options: { recording_id: selectedRecording.value.id },
       }),
     });
     const data = await res.json();
@@ -250,8 +287,14 @@ const enqueueJob = async (type) => {
 
 const cancelJob = async (jobId) => {
   try {
+    const token = localStorage.getItem('stream_token') || localStorage.getItem('access_token') || '';
+    const headers = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
     const res = await fetch(`${props.coreApi}/api/queue/jobs/${jobId}/cancel`, {
       method: 'POST',
+      headers,
     });
     if (res.ok) {
       await fetchJobs();
@@ -262,6 +305,7 @@ const cancelJob = async (jobId) => {
 };
 
 onMounted(async () => {
+  await fetchRecordings();
   await fetchJobs();
   await fetchStats();
   // Auto-poll while modal is open to animate progress bars in real-time
@@ -399,6 +443,23 @@ onBeforeUnmount(() => {
   background: #ffffff;
   color: #000000;
   padding: 2px 5px;
+}
+
+.badge-offline {
+  font-size: 9px;
+  font-weight: 700;
+  background: #482828;
+  color: #ffb0b0;
+  padding: 2px 5px;
+}
+
+.recording-select {
+  min-width: 220px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid #333;
+  background: #000;
+  color: #eee;
 }
 
 .producer-panel {
